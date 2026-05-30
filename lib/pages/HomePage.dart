@@ -32,13 +32,6 @@ class _HomePageState extends State<HomePage> {
           tooltip: 'Navigation menu',
           onPressed: () => setState(() => _isSideMenuOpen = !_isSideMenuOpen),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            tooltip: 'Search',
-            onPressed: null,
-          ),
-        ],
       ),
       body: Row(
         children: [

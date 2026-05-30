@@ -10,7 +10,8 @@ class CourseCatalogue extends StatefulWidget {
 }
 
 class _CourseCatalogueState extends State<CourseCatalogue> {
-  String? selectedFaculty;
+  final TextEditingController _searchController = TextEditingController();
+  final Set<int> expandedCards = {};
 
   final List<String> faculties = [
     'All Faculties',
@@ -27,10 +28,15 @@ class _CourseCatalogueState extends State<CourseCatalogue> {
   @override
   void initState() {
     super.initState();
-    selectedFaculty = 'All Faculties';
     Future.microtask(() {
       context.read<CourseRegistrationController>().getCourses();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -70,6 +76,10 @@ class _CourseCatalogueState extends State<CourseCatalogue> {
 
                     // ================= SEARCH =================
                     TextField(
+                      controller: _searchController,
+                      onChanged: (value) {
+                        context.read<CourseRegistrationController>().searchCourse(value);
+                      },
                       decoration: InputDecoration(
                         hintText:
                             "Search by course code, name, or instructor",
@@ -96,7 +106,7 @@ class _CourseCatalogueState extends State<CourseCatalogue> {
                     const SizedBox(height: 18),
 
                     Text(
-                      "Showing ${_getFilteredCourses(controller).length} courses",
+                      "Showing ${controller.displayCourseList().length} courses",
                       style: const TextStyle(
                         color: Colors.grey,
                         fontWeight: FontWeight.w500,
@@ -110,19 +120,20 @@ class _CourseCatalogueState extends State<CourseCatalogue> {
                         ? const Center(
                             child: CircularProgressIndicator(),
                           )
-                        : _getFilteredCourses(controller).isEmpty
+                        : controller.displayCourseList().isEmpty
                             ? const Center(
                                 child: Text("No courses available"),
                               )
                             : ListView.builder(
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
-                                itemCount: _getFilteredCourses(controller).length,
+                                itemCount: controller.displayCourseList().length,
                                 itemBuilder: (context, index) {
-                                  final course = _getFilteredCourses(controller)[index];
+                                  final course = controller.displayCourseList()[index];
+                                  final isExpanded = expandedCards.contains(index);
                                   return Padding(
                                     padding: const EdgeInsets.only(bottom: 16),
-                                    child: courseCard(course),
+                                    child: courseCard(course, index, isExpanded),
                                   );
                                 },
                               ),
@@ -136,16 +147,7 @@ class _CourseCatalogueState extends State<CourseCatalogue> {
     );
   }
 
-  List _getFilteredCourses(CourseRegistrationController controller) {
-    if (selectedFaculty == 'All Faculties' || selectedFaculty == null) {
-      return controller.courseList;
-    }
-    return controller.courseList.where((course) {
-      // 假设 CourseModel 中有 faculty 字段
-      // 如果没有，这里需要根据实际情况修改过滤逻辑
-      return course.faculty == selectedFaculty;
-    }).toList();
-  }
+
 
   Widget filterDropdown(String text) {
     return Container(
@@ -189,7 +191,7 @@ class _CourseCatalogueState extends State<CourseCatalogue> {
         ),
       ),
       child: DropdownButton<String>(
-        value: selectedFaculty,
+        value: context.watch<CourseRegistrationController>().selectedFaculty,
         isExpanded: true,
         underline: const SizedBox(),
         items: faculties.map((String faculty) {
@@ -206,175 +208,171 @@ class _CourseCatalogueState extends State<CourseCatalogue> {
         }).toList(),
         onChanged: (String? newValue) {
           if (newValue != null) {
-            setState(() {
-              selectedFaculty = newValue;
-            });
+            context.read<CourseRegistrationController>().filterCourse(newValue);
           }
         },
       ),
     );
   }
 
-  Widget courseCard(dynamic course) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0xFFE5E5E5),
+  Widget courseCard(dynamic course, int index, bool isExpanded) {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          if (expandedCards.contains(index)) {
+            expandedCards.remove(index);
+          } else {
+            expandedCards.add(index);
+          }
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: const Color(0xFFE5E5E5),
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ================= TOP =================
-          Row(
-            children: [
-              Text(
-                course.course_code,
-                style: const TextStyle(
-                  fontSize: 22,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ================= TOP =================
+            Row(
+              children: [
+                Text(
+                  course.course_code,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                tag("Section ${course.section}", Colors.black),
+                const SizedBox(width: 6),
+
+                tag(
+                  "Lecture",
+                  Colors.indigo.shade100,
+                  textColor: Colors.indigo,
+                ),
+
+                const Spacer(),
+
+                Icon(
+                  isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
+            Text(
+              course.course_name,
+              style: const TextStyle(
+                fontSize: 16,
+                color: Colors.black87,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            infoRow(Icons.calendar_today, "Time: ${course.class_time}", ""),
+            const SizedBox(height: 10),
+
+            infoRow(Icons.location_on_outlined, "Venue: ${course.venue}", ""),
+            const SizedBox(height: 10),
+
+            Row(
+              children: [
+                const Icon(
+                  Icons.people_outline,
+                  size: 18,
+                  color: Colors.grey,
+                ),
+                const SizedBox(width: 8),
+                RichText(
+                  text: TextSpan(
+                    style: const TextStyle(
+                      color: Colors.black87,
+                      fontSize: 14,
+                    ),
+                    children: [
+                      const TextSpan(text: "Capacity: "),
+                      TextSpan(
+                        text: "${course.register_student_count}/${course.capacity_limit}",
+                        style: TextStyle(
+                          color: Colors.orange,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            if (isExpanded) ...[
+              const SizedBox(height: 10),
+              infoRow(
+                Icons.person_outline,
+                "Instructor: ${course.lecturer_id}",
+                "",
+              ),
+              const SizedBox(height: 10),
+              infoRow(
+                Icons.book_outlined,
+                "Final Exam: ${course.final_exam_date.toString().split(' ')[0]}",
+                "",
+              ),
+              const SizedBox(height: 10),
+              infoRow(
+                Icons.school_outlined,
+                "Credits: ${course.credit_hour}",
+                "",
+              ),
+              const SizedBox(height: 10),
+              infoRow(
+                Icons.category_outlined,
+                "Section: ${course.section}",
+                "",
+              ),
+              const SizedBox(height: 10),
+              infoRow(
+                Icons.people_alt_outlined,
+                "Registered: ${course.register_student_count}",
+                "",
+              ),
+              const SizedBox(height: 10),
+              infoRow(
+                Icons.event_seat_outlined,
+                "Total Capacity: ${course.capacity_limit}",
+                "",
+              ),
+              const SizedBox(height: 18),
+              const Divider(),
+              const SizedBox(height: 12),
+              const Text(
+                "Course Description",
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
                 ),
               ),
-
-              const SizedBox(width: 10),
-
-              tag("Section ${course.section}", Colors.black),
-              const SizedBox(width: 6),
-
-              tag(
-                "Lecture",
-                Colors.indigo.shade100,
-                textColor: Colors.indigo,
-              ),
-
-              const Spacer(),
-
-              const Icon(Icons.keyboard_arrow_up),
-            ],
-          ),
-
-          const SizedBox(height: 8),
-
-          Text(
-            course.course_name,
-            style: const TextStyle(
-              fontSize: 16,
-              color: Colors.black87,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          infoRow(Icons.calendar_today, "Time: ${course.class_time}", ""),
-          const SizedBox(height: 10),
-
-          infoRow(Icons.location_on_outlined, "Venue: ${course.venue}", ""),
-          const SizedBox(height: 10),
-
-          Row(
-            children: [
-              const Icon(
-                Icons.people_outline,
-                size: 18,
-                color: Colors.grey,
-              ),
-              const SizedBox(width: 8),
-              RichText(
-                text: TextSpan(
-                  style: const TextStyle(
-                    color: Colors.black87,
-                    fontSize: 14,
-                  ),
-                  children: [
-                    const TextSpan(text: "Capacity: "),
-                    TextSpan(
-                      text: "${course.register_student_count}/${course.capacity_limit}",
-                      style: TextStyle(
-                        color: Colors.orange,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 10),
+              Text(
+                course.course_description,
+                style: const TextStyle(
+                  height: 1.5,
+                  color: Colors.black87,
                 ),
               ),
-            ],
-          ),
-
-          const SizedBox(height: 10),
-
-          infoRow(
-            Icons.person_outline,
-            "Instructor: ${course.lecturer_id}",
-            "",
-          ),
-
-          const SizedBox(height: 10),
-
-          infoRow(
-            Icons.book_outlined,
-            "Final Exam: ${course.final_exam_date.toString().split(' ')[0]}",
-            "",
-          ),
-
-          const SizedBox(height: 10),
-
-          infoRow(
-            Icons.school_outlined,
-            "Credits: ${course.credit_hour}",
-            "",
-          ),
-
-          const SizedBox(height: 10),
-
-          infoRow(
-            Icons.category_outlined,
-            "Section: ${course.section}",
-            "",
-          ),
-
-          const SizedBox(height: 10),
-
-          infoRow(
-            Icons.people_alt_outlined,
-            "Registered: ${course.register_student_count}",
-            "",
-          ),
-
-          const SizedBox(height: 10),
-
-          infoRow(
-            Icons.event_seat_outlined,
-            "Total Capacity: ${course.capacity_limit}",
-            "",
-          ),
-
-          const SizedBox(height: 18),
-
-          const Divider(),
-
-          const SizedBox(height: 12),
-
-          const Text(
-            "Course Description",
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          Text(
-            course.course_description,
-            style: const TextStyle(
-              height: 1.5,
-              color: Colors.black87,
-            ),
-          ),
-        ],
+            ]
+          ],
+        ),
       ),
     );
   }
