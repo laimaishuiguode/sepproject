@@ -10,9 +10,24 @@ class CourseCatalogue extends StatefulWidget {
 }
 
 class _CourseCatalogueState extends State<CourseCatalogue> {
+  String? selectedFaculty;
+
+  final List<String> faculties = [
+    'All Faculties',
+    'Faculty of Computing',
+    'Faculty of Chemical and Process Engineering Technology',
+    'Faculty of Civil Engineering Technology',
+    'Faculty of Electrical and Electronics Engineering Technology',
+    'Faculty of Manufacturing and Mechatronic Engineering Technology',
+    'Faculty of Mechanical and Automotive Engineering Technology',
+    'Centre for Mathematical Sciences',
+    'Faculty of Industrial Sciences and Technology',
+  ];
+
   @override
   void initState() {
     super.initState();
+    selectedFaculty = 'All Faculties';
     Future.microtask(() {
       context.read<CourseRegistrationController>().getCourses();
     });
@@ -73,29 +88,15 @@ class _CourseCatalogueState extends State<CourseCatalogue> {
                     const SizedBox(height: 16),
 
                     // ================= FILTERS =================
-                    Row(
-                      children: [
-                        Expanded(
-                          child: filterDropdown("All Days"),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: filterDropdown("All Modes"),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 12),
-
                     SizedBox(
                       width: double.infinity,
-                      child: filterDropdown("All Faculties"),
+                      child: facultyDropdown(),
                     ),
 
                     const SizedBox(height: 18),
 
                     Text(
-                      "Showing ${controller.courseList.length} courses",
+                      "Showing ${_getFilteredCourses(controller).length} courses",
                       style: const TextStyle(
                         color: Colors.grey,
                         fontWeight: FontWeight.w500,
@@ -109,16 +110,16 @@ class _CourseCatalogueState extends State<CourseCatalogue> {
                         ? const Center(
                             child: CircularProgressIndicator(),
                           )
-                        : controller.courseList.isEmpty
+                        : _getFilteredCourses(controller).isEmpty
                             ? const Center(
                                 child: Text("No courses available"),
                               )
                             : ListView.builder(
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
-                                itemCount: controller.courseList.length,
+                                itemCount: _getFilteredCourses(controller).length,
                                 itemBuilder: (context, index) {
-                                  final course = controller.courseList[index];
+                                  final course = _getFilteredCourses(controller)[index];
                                   return Padding(
                                     padding: const EdgeInsets.only(bottom: 16),
                                     child: courseCard(course),
@@ -133,6 +134,17 @@ class _CourseCatalogueState extends State<CourseCatalogue> {
         ),
       ),
     );
+  }
+
+  List _getFilteredCourses(CourseRegistrationController controller) {
+    if (selectedFaculty == 'All Faculties' || selectedFaculty == null) {
+      return controller.courseList;
+    }
+    return controller.courseList.where((course) {
+      // 假设 CourseModel 中有 faculty 字段
+      // 如果没有，这里需要根据实际情况修改过滤逻辑
+      return course.faculty == selectedFaculty;
+    }).toList();
   }
 
   Widget filterDropdown(String text) {
@@ -159,6 +171,46 @@ class _CourseCatalogueState extends State<CourseCatalogue> {
             color: Colors.grey,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget facultyDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: 4,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFFE5E5E5),
+        ),
+      ),
+      child: DropdownButton<String>(
+        value: selectedFaculty,
+        isExpanded: true,
+        underline: const SizedBox(),
+        items: faculties.map((String faculty) {
+          return DropdownMenuItem<String>(
+            value: faculty,
+            child: Text(
+              faculty,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: 14,
+              ),
+            ),
+          );
+        }).toList(),
+        onChanged: (String? newValue) {
+          if (newValue != null) {
+            setState(() {
+              selectedFaculty = newValue;
+            });
+          }
+        },
       ),
     );
   }

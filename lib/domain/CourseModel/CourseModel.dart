@@ -12,6 +12,7 @@ class CourseModel {
   final int capacity_limit;
   final DateTime final_exam_date;
   final int register_student_count;
+  final String faculty;
 
   CourseModel({
     required this.course_code,
@@ -25,6 +26,7 @@ class CourseModel {
     required this.capacity_limit,
     required this.final_exam_date,
     required this.register_student_count,
+    required this.faculty,
   });
 
 
@@ -44,6 +46,7 @@ factory CourseModel.fromJson(Map<String, dynamic> json) {
           ? (json['final_exam_date'] as Timestamp).toDate()
           : DateTime.parse(json['final_exam_date']),
       register_student_count: json['register_student_count'],
+      faculty: json['faculty'] ?? 'Faculty of Computing',
     );
 }
 }
